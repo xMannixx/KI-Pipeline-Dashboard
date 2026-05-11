@@ -37,8 +37,21 @@ from pipeline.reviewer import (
 BASE_DIR = Path(__file__).parent
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
-app.secret_key = os.urandom(24)
 APP_LOGGER = logging.getLogger("aethos.dashboard")
+
+
+def _resolve_secret_key() -> str | bytes:
+    key = os.environ.get("FLASK_SECRET_KEY", "").strip()
+    if key:
+        return key
+    APP_LOGGER.warning(
+        "FLASK_SECRET_KEY is not set. Falling back to ephemeral key; "
+        "sessions become invalid after each restart."
+    )
+    return os.urandom(24)
+
+
+app.secret_key = _resolve_secret_key()
 
 
 @app.after_request

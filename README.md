@@ -229,6 +229,16 @@ DEEPSEEK_API_KEY=sk-...
 
 Das Dashboard lädt `.env` automatisch beim Start (Datei im Projektroot).
 
+### Session Secret (empfohlen)
+
+Für stabile Sessions über App-Neustarts hinweg sollte zusätzlich ein fester Secret-Key gesetzt werden:
+
+```env
+FLASK_SECRET_KEY=<zufaelliger-langer-wert>
+```
+
+Ohne gesetzten `FLASK_SECRET_KEY` nutzt die App einen temporären Schlüssel pro Start (Sessions werden beim Neustart ungültig).
+
 ### Starten
 
 **Option A** — Batch-Datei im Repo (Windows):
@@ -612,6 +622,12 @@ Wenn du die **Weboberfläche** selbst per TLS erreichbar machen willst (z. B. Zu
 ## Sicherheitsregel
 
 > Passe in deiner lokalen `config.toml` an, welche Verzeichnisse das **Original** (z. B. für Cursor) und welche die **Arbeitskopie** für Reviews sind — und halte getrennte Pfade ein, falls du so arbeitest.
+
+Weitere Leitfäden:
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [`SECURITY.md`](SECURITY.md)
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
 
 ---
 
