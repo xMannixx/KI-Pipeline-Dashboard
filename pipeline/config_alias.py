@@ -116,7 +116,7 @@ def _validate_path_section(cfg: dict[str, Any], section: str) -> None:
     if section_cfg is None:
         return
     if not isinstance(section_cfg, dict):
-        raise ValueError(f"Invalid config section '{section}': expected table/object.")
+        raise ValueError(f"Invalid config section '{section}': expected dictionary.")
     if "path" in section_cfg:
         _validate_path_value(section_cfg["path"], f"{section}.path")
 
@@ -124,7 +124,7 @@ def _validate_path_section(cfg: dict[str, Any], section: str) -> None:
 def validate_dashboard_config(cfg: dict[str, Any]) -> dict[str, Any]:
     teamleiter = cfg.get("teamleiter")
     if not isinstance(teamleiter, dict):
-        raise ValueError("Invalid config section 'teamleiter': expected table/object.")
+        raise ValueError("Invalid config section 'teamleiter': expected dictionary.")
     _validate_provider(teamleiter.get("provider"), "teamleiter.provider")
     _require_non_empty_str(teamleiter.get("model"), "teamleiter.model")
 
@@ -134,7 +134,7 @@ def validate_dashboard_config(cfg: dict[str, Any]) -> dict[str, Any]:
     for idx, choice in enumerate(choices):
         if not isinstance(choice, dict):
             raise ValueError(
-                f"Invalid config value for 'teamleiter_choices[{idx}]': expected table/object."
+                f"Invalid config value for 'teamleiter_choices[{idx}]': expected dictionary."
             )
         _require_non_empty_str(choice.get("label"), f"teamleiter_choices[{idx}].label")
         _validate_provider(choice.get("provider"), f"teamleiter_choices[{idx}].provider")
@@ -147,7 +147,7 @@ def validate_dashboard_config(cfg: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Invalid config: at least one [[workspace_roots]] entry is required.")
     for idx, root in enumerate(workspace_roots):
         if not isinstance(root, dict):
-            raise ValueError(f"Invalid config value for 'workspace_roots[{idx}]': expected table/object.")
+            raise ValueError(f"Invalid config value for 'workspace_roots[{idx}]': expected dictionary.")
         _validate_path_value(root.get("path"), f"workspace_roots[{idx}].path")
 
     for section in (
@@ -165,7 +165,7 @@ def validate_dashboard_config(cfg: dict[str, Any]) -> dict[str, Any]:
     anthropic_cfg = cfg.get("anthropic")
     if anthropic_cfg is not None:
         if not isinstance(anthropic_cfg, dict):
-            raise ValueError("Invalid config section 'anthropic': expected table/object.")
+            raise ValueError("Invalid config section 'anthropic': expected dictionary.")
         ttl = anthropic_cfg.get("prompt_cache_ttl", "5m")
         if ttl not in ("5m", "1h"):
             raise ValueError("Invalid config value for 'anthropic.prompt_cache_ttl': use '5m' or '1h'.")
