@@ -5,8 +5,14 @@ import logging
 import threading
 from pathlib import Path
 
+import pytest
+
 from pipeline import state_machine as sm
-from pipeline.config_alias import normalize_teamleiter_aliases, reset_alias_warning_for_tests
+from pipeline.config_alias import (
+    load_dashboard_config,
+    normalize_teamleiter_aliases,
+    reset_alias_warning_for_tests,
+)
 
 
 def _setup_temp_audit(monkeypatch, tmp_path: Path) -> Path:
@@ -100,3 +106,39 @@ def test_audit_parallel_calls_keep_all_entries(monkeypatch, tmp_path: Path) -> N
         parsed = json.loads(line)
         assert "run_id" in parsed
         assert "action" in parsed
+
+
+def test_load_dashboard_config_rejects_invalid_provider(tmp_path: Path) -> None:
+    bad_cfg = tmp_path / "bad_config.toml"
+    bad_cfg.write_text(
+        """
+        [teamleiter]
+        provider = "invalid-provider"
+        model = "x"
+
+        [[workspace_roots]]
+        label = "Root"
+        path = "."
+        """,
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="teamleiter.provider"):
+        load_dashboard_config(bad_cfg)
+
+
+def test_load_dashboard_config_rejects_empty_workspace_root_path(tmp_path: Path) -> None:
+    bad_cfg = tmp_path / "bad_workspace.toml"
+    bad_cfg.write_text(
+        """
+        [teamleiter]
+        provider = "anthropic"
+        model = "claude-sonnet-4-6"
+
+        [[workspace_roots]]
+        label = "Root"
+        path = ""
+        """,
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="workspace_roots\\[0\\]\\.path"):
+        load_dashboard_config(bad_cfg)

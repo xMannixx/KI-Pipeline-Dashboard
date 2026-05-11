@@ -1,0 +1,17 @@
+name: Security report
+description: Report a potential security problem (private channel preferred)
+title: "[Security] "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Bitte keine sensiblen Details öffentlich posten.**
+        Nutze bevorzugt den in `SECURITY.md` beschriebenen vertraulichen Meldeweg.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary (non-sensitive)
+      description: High-level summary without exploit details
+    validations:
+      required: true
