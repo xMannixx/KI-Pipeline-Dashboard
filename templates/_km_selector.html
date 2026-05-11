@@ -1,0 +1,49 @@
+<!-- Teamleiter Modell-Auswahl -->
+<div class="km-selector-row">
+  <label class="km-selector-label">&#127908; Teamleiter:</label>
+  <div class="km-choices" id="km-choices-{{ idx }}">
+    {% for choice in km_choices %}
+    <button type="button"
+      class="km-choice-btn {% if loop.first %}active{% endif %}"
+      data-provider="{{ choice.provider }}"
+      data-model="{{ choice.model }}"
+      onclick="selectKM(this, {{ idx }})">
+      {{ choice.label }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Extended Thinking Effort (nur Anthropic) -->
+<div class="km-effort-row" id="km-effort-row-{{ idx }}">
+  <label class="km-selector-label">&#129504; Thinking:</label>
+  <div class="km-effort-choices" id="km-effort-{{ idx }}">
+    <button type="button" class="km-effort-btn active" data-effort="none"
+            onclick="selectEffort(this, {{ idx }})">Kein Thinking</button>
+    <button type="button" class="km-effort-btn" data-effort="low"
+            onclick="selectEffort(this, {{ idx }})">Low <span class="effort-hint">~1k Token</span></button>
+    <button type="button" class="km-effort-btn" data-effort="medium"
+            onclick="selectEffort(this, {{ idx }})">Medium <span class="effort-hint">~8k Token</span></button>
+    <button type="button" class="km-effort-btn" data-effort="high"
+            onclick="selectEffort(this, {{ idx }})">High <span class="effort-hint">~16k Token</span></button>
+    <button type="button" class="km-effort-btn" data-effort="max"
+            onclick="selectEffort(this, {{ idx }})">Max <span class="effort-hint">~32k Token</span></button>
+  </div>
+</div>
+
+<!-- Temperatur -->
+<div class="km-temp-row" id="km-temp-row-{{ idx }}">
+  <label class="km-selector-label">&#127777; Temperatur:</label>
+  <div class="km-temp-control">
+    <input type="range" class="temp-slider" id="km-temp-slider-{{ idx }}"
+           min="0" max="1.5" step="0.1" value="0.2"
+           oninput="updateTempDisplay(this, {{ idx }})">
+    <span class="temp-display" id="km-temp-val-{{ idx }}">0.2</span>
+    <div class="temp-presets">
+      <button type="button" class="temp-preset-btn" onclick="setTemp(0.0, {{ idx }})" title="Code/Mathe">0.0</button>
+      <button type="button" class="temp-preset-btn active" onclick="setTemp(0.2, {{ idx }})" title="Standard Review">0.2</button>
+      <button type="button" class="temp-preset-btn" onclick="setTemp(0.5, {{ idx }})" title="Balanciert">0.5</button>
+      <button type="button" class="temp-preset-btn" onclick="setTemp(1.0, {{ idx }})" title="Kreativ">1.0</button>
+    </div>
+  </div>
+</div>

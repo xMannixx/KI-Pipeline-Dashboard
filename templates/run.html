@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}{{ run.title }} — Aethos Pipeline{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="/" class="back-link">&#8592; Alle Runs</a>
+    <h1 class="page-title">{{ run.title }}</h1>
+    <p class="page-subtitle">{{ run.description or 'Kein Beschreibung angegeben.' }}</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+    <span class="status-badge badge-{{ run.overall_status }}" id="overall-badge">
+      {{ {'pending': 'Ausstehend', 'running': 'Laeuft', 'review': 'Warte auf Manni',
+          'completed': 'Abgeschlossen', 'rejected': 'Abgelehnt'}.get(run.overall_status, run.overall_status) }}
+    </span>
+    {% if run.overall_status == 'running' %}
+    <button class="btn btn-ghost btn-sm" id="abort-btn" onclick="abortRunPage()">&#9632; Stoppen</button>
+    {% endif %}
+    <button class="btn btn-ghost btn-sm" onclick="deleteRunPage()" title="Run loeschen" style="color:var(--error)">&#128465;</button>
+  </div>
+</div>
+
+<!-- Phase Stepper -->
+<div class="stepper">
+  {% set phase_labels = ['Review-Auftrag', 'Parallel Review', 'Konsolidierung', 'Cursor-Auftrag', 'Build'] %}
+  {% for i in range(5) %}
+  <div class="stepper-step step-{{ run.phases[i].status }}" id="step-{{ i }}">
+    <div class="step-num">{{ i + 1 }}</div>
+    <div class="step-name">{{ phase_labels[i] }}</div>
+  </div>
+  {% if i < 4 %}<div class="stepper-connector" id="conn-{{ i }}"></div>{% endif %}
+  {% endfor %}
+</div>
+
+<!-- Phase Cards -->
+{% for phase in run.phases %}
+<div class="phase-card status-{{ phase.status }}" id="phase-card-{{ loop.index0 }}">
+
+  <div class="phase-card-header">
+    <div class="phase-title-row">
+      <span class="phase-num">Phase {{ loop.index }}</span>
+      <span class="phase-label">{{ phase.label }}</span>
+    </div>
+    <span class="status-badge badge-{{ phase.status }}" id="badge-{{ loop.index0 }}">
+      {{ {'pending': 'Ausstehend', 'running': 'Laeuft...', 'review': 'Pruefe',
+          'approved': 'Freigegeben', 'rejected': 'Abgelehnt'}.get(phase.status, phase.status) }}
+    </span>
+  </div>
+
+  {% set idx = loop.index0 %}
+
+  <!-- Phase 1: Review-Auftrag -->
+  {% if idx == 0 %}
+  <div class="phase-body" id="body-{{ idx }}">
+    {% if phase.status == 'pending' or phase.status == 'rejected' %}
+    <div class="phase-hint">Teamleiter generiert einen strukturierten Review-YAML-Auftrag aus deiner Beschreibung und dem Code.</div>
+    {% include '_km_selector.html' %}
+    <button class="btn btn-primary" onclick="startPhase({{ idx }})">&#9654; Phase starten</button>
+    {% elif phase.status == 'running' %}
+    <div class="status-bar status-running"><div class="spinner"></div><span id="km-running-label-{{ idx }}">Teamleiter generiert Review-Auftrag...</span></div>
+    {% elif phase.status in ('review', 'approved') %}
+    {% if phase.result and phase.result.km_model %}<div class="result-meta" style="margin-bottom:6px">&#127908; {{ phase.result.km_model }}{% if phase.result.cache_read_tokens %} &nbsp;<span class="cache-badge">&#9889; {{ phase.result.cache_read_tokens }} cached</span>{% endif %}</div>{% endif %}
+    <div class="result-label">Generierter Review-Auftrag (YAML)</div>
+    <textarea class="result-textarea" id="result-text-{{ idx }}"
+      {% if phase.status == 'approved' %}readonly{% endif %}>{{ phase.result.yaml_text if phase.result else '' }}</textarea>
+    {% if phase.result and phase.result.duration %}<div class="result-meta">&#9201; {{ phase.result.duration }}s</div>{% endif %}
+    {% if phase.error %}<div class="error-box">{{ phase.error }}</div>{% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Phase 2: Parallel Review -->
+  {% elif idx == 1 %}
+  <div class="phase-body" id="body-{{ idx }}">
+    {% if phase.status == 'pending' or phase.status == 'rejected' %}
+    <div class="phase-hint">Startet {{ reviewers|length }} Reviewer parallel. Jeder Reviewer arbeitet gleichzeitig.</div>
+    <div class="reviewer-select">
+      {% for ki_id, rcfg in reviewers.items() %}
+      <label class="reviewer-check">
+        <input type="checkbox" class="reviewer-checkbox" value="{{ ki_id }}" checked>
+        <span class="reviewer-name">{{ rcfg.name }}</span>
+        <span class="reviewer-role">{{ rcfg.role }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <!-- Reviewer Thinking Effort -->
+    <div class="km-effort-row" id="reviewer-effort-row" style="margin-top:8px">
+      <label class="km-selector-label">&#129504; Reviewer Thinking:</label>
+      <div class="km-effort-choices" id="reviewer-effort">
+        <button type="button" class="km-effort-btn active" data-effort="none"
+                onclick="selectReviewerEffort(this)">Kein Thinking</button>
+        <button type="button" class="km-effort-btn" data-effort="low"
+                onclick="selectReviewerEffort(this)">Low <span class="effort-hint">~1k</span></button>
+        <button type="button" class="km-effort-btn" data-effort="medium"
+                onclick="selectReviewerEffort(this)">Medium <span class="effort-hint">~8k</span></button>
+        <button type="button" class="km-effort-btn" data-effort="high"
+                onclick="selectReviewerEffort(this)">High <span class="effort-hint">~16-25k</span></button>
+        <button type="button" class="km-effort-btn" data-effort="max"
+                onclick="selectReviewerEffort(this)">Max <span class="effort-hint">~32k</span></button>
+      </div>
+    </div>
+    <!-- Reviewer Temperatur -->
+    <div class="km-temp-row" id="reviewer-temp-row" style="margin-top:4px">
+      <label class="km-selector-label">&#127777; Reviewer Temp:</label>
+      <div class="km-temp-control">
+        <input type="range" class="temp-slider" id="reviewer-temp-slider"
+               min="0" max="1.5" step="0.1" value="0.2"
+               oninput="updateReviewerTempDisplay(this)">
+        <span class="temp-display" id="reviewer-temp-val">0.2</span>
+        <div class="temp-presets">
+          <button type="button" class="temp-preset-btn" onclick="setReviewerTemp(0.0)" title="Code/Mathe (DeepSeek optimal)">0.0</button>
+          <button type="button" class="temp-preset-btn active" onclick="setReviewerTemp(0.2)" title="Standard Review">0.2</button>
+          <button type="button" class="temp-preset-btn" onclick="setReviewerTemp(0.5)" title="Balanciert">0.5</button>
+          <button type="button" class="temp-preset-btn" onclick="setReviewerTemp(1.0)" title="Analyse/Daten">1.0</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="startPhase2()">&#9654;&#9654; Alle Reviewer starten</button>
+    {% elif phase.status == 'running' %}
+    <div class="status-bar status-running" id="phase2-progress">
+      <div class="spinner"></div><span id="phase2-progress-text">Reviewer werden gestartet...</span>
+    </div>
+    <div id="phase2-live-results"></div>
+    {% elif phase.status in ('review', 'approved') %}
+    <div id="phase2-results-display">
+      {% if phase.result and phase.result.results %}
+        {% for ki_id, r in phase.result.results.items() %}
+        <details class="reviewer-result" open>
+          <summary>
+            <span class="reviewer-result-name">{{ r.ki_name }}</span>
+            <span class="reviewer-result-meta">&#9201; {{ r.duration }}s &nbsp; {{ r.role }}{% if r.cache_read_tokens %} &nbsp;<span class="cache-badge">&#9889; {{ r.cache_read_tokens }} cached</span>{% endif %}{% if r.thinking_budget %} &nbsp;<span class="thinking-badge">&#129504; {{ r.thinking_budget }} thought</span>{% endif %}</span>
+          </summary>
+          <pre class="result-pre">{{ r.text }}</pre>
+        </details>
+        {% endfor %}
+        {% for ki_id, e in phase.result.errors.items() %}
+        <div class="reviewer-error">&#10007; {{ e.ki_name }}: {{ e.error }}</div>
+        {% endfor %}
+        <div class="phase2-save-row">
+          <a class="btn btn-secondary btn-sm" href="/api/run/{{ run.run_id }}/phase/1/export" download>
+            &#8681; Download (.md)
+          </a>
+          <button class="btn btn-secondary btn-sm" onclick="savePhase2()">
+            &#128190; In Ordner speichern
+          </button>
+          <span id="phase2-save-msg" style="font-size:11px;color:var(--text-dim)"></span>
+        </div>
+        {% if phase.result.auto_saved_path %}
+        <div class="result-meta" style="margin-top:8px">&#9989; Auto-save: {{ phase.result.auto_saved_path }}</div>
+        {% elif phase.result.auto_save_error %}
+        <div class="error-box">Auto-save Fehler: {{ phase.result.auto_save_error }}</div>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% if phase.error %}<div class="error-box">{{ phase.error }}</div>{% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Phase 3: Konsolidierung -->
+  {% elif idx == 2 %}
+  <div class="phase-body" id="body-{{ idx }}">
+    {% if phase.status == 'pending' or phase.status == 'rejected' %}
+    <div class="phase-hint">Teamleiter analysiert alle Review-Ergebnisse und erstellt Konsens-Findings, einzigartige Findings und priorisierte Massnahmen.</div>
+    {% include '_km_selector.html' %}
+    <button class="btn btn-primary" onclick="startPhase({{ idx }})">&#9654; Konsolidierung starten</button>
+    {% elif phase.status == 'running' %}
+    <div class="status-bar status-running"><div class="spinner"></div><span>Teamleiter konsolidiert...</span></div>
+    {% elif phase.status in ('review', 'approved') %}
+    {% if phase.result and phase.result.km_model %}<div class="result-meta" style="margin-bottom:6px">&#127908; {{ phase.result.km_model }}</div>{% endif %}
+    <div class="result-label">Konsolidierte Analyse</div>
+    <textarea class="result-textarea result-textarea-tall" id="result-text-{{ idx }}"
+      {% if phase.status == 'approved' %}readonly{% endif %}>{{ phase.result.consolidation_text if phase.result else '' }}</textarea>
+    {% if phase.result and phase.result.duration %}<div class="result-meta">&#9201; {{ phase.result.duration }}s</div>{% endif %}
+    <div class="phase2-save-row">
+      <button class="btn btn-secondary btn-sm" onclick="savePhase3()">
+        &#128190; Konsolidierung speichern
+      </button>
+      <span id="phase3-save-msg" style="font-size:11px;color:var(--text-dim)"></span>
+    </div>
+    {% if phase.result and phase.result.auto_saved_path %}
+    <div class="result-meta" style="margin-top:8px">&#9989; Auto-save: {{ phase.result.auto_saved_path }}</div>
+    {% elif phase.result and phase.result.auto_save_error %}
+    <div class="error-box">Auto-save Fehler: {{ phase.result.auto_save_error }}</div>
+    {% endif %}
+    {% if phase.error %}<div class="error-box">{{ phase.error }}</div>{% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Phase 4: Cursor-Auftrag -->
+  {% elif idx == 3 %}
+  <div class="phase-body" id="body-{{ idx }}">
+    {% if phase.status == 'pending' or phase.status == 'rejected' %}
+    <div class="phase-hint">Teamleiter generiert einen konkreten, umsetzbaren Cursor-Auftrag aus der konsolidierten Analyse.</div>
+    {% include '_km_selector.html' %}
+    <button class="btn btn-primary" onclick="startPhase({{ idx }})">&#9654; Cursor-Auftrag generieren</button>
+    {% elif phase.status == 'running' %}
+    <div class="status-bar status-running"><div class="spinner"></div><span>Teamleiter erstellt Cursor-Auftrag...</span></div>
+    {% elif phase.status in ('review', 'approved') %}
+    {% if phase.result and phase.result.km_model %}<div class="result-meta" style="margin-bottom:6px">&#127908; {{ phase.result.km_model }}</div>{% endif %}
+    <div class="result-label">Cursor-Auftrag (YAML)</div>
+    <textarea class="result-textarea result-textarea-tall" id="result-text-{{ idx }}"
+      {% if phase.status == 'approved' %}readonly{% endif %}>{{ (phase.result.task_yaml or phase.result.task_markdown) if phase.result else '' }}</textarea>
+    {% if phase.result and phase.result.duration %}<div class="result-meta">&#9201; {{ phase.result.duration }}s</div>{% endif %}
+    {% if phase.error %}<div class="error-box">{{ phase.error }}</div>{% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Phase 5: Build / Cursor-Bruecke -->
+  {% elif idx == 4 %}
+  <div class="phase-body" id="body-{{ idx }}">
+    {% if phase.status == 'pending' or phase.status == 'rejected' %}
+    <div class="phase-hint">Der Cursor-Auftrag wird als <code>.yaml</code>-Datei in den Workspace-Ordner geschrieben. Dann in Cursor mit <code>@dateiname</code> referenzieren.</div>
+    <button class="btn btn-primary" onclick="startPhase({{ idx }})">&#128228; An Cursor senden</button>
+    {% elif phase.status == 'running' %}
+    <div class="status-bar status-running"><div class="spinner"></div><span>Schreibe Datei...</span></div>
+    {% elif phase.status in ('review', 'approved') %}
+    {% if phase.result and phase.result.file_path %}
+    <div class="file-written-box">
+      <div class="file-written-icon">&#128228;</div>
+      <div>
+        <div class="file-written-title">Datei geschrieben</div>
+        <div class="file-written-path">{{ phase.result.file_path }}</div>
+        <div class="file-written-hint">In Cursor oeffnen und mit <code>@{{ phase.result.filename }}</code> referenzieren, dann "Implement this".</div>
+      </div>
+    </div>
+    <div class="phase2-save-row">
+      <button class="btn btn-secondary btn-sm" onclick="generateTokenReport()">
+        &#128202; Token-Report (.yaml)
+      </button>
+      <span id="token-report-msg" style="font-size:11px;color:var(--text-dim)"></span>
+    </div>
+    {% endif %}
+    {% if phase.error %}<div class="error-box">{{ phase.error }}</div>{% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Manni-Buttons -->
+  <div class="manni-gates" id="gates-{{ loop.index0 }}">
+    {% if phase.status == 'running' %}
+      <button class="btn btn-reject" onclick="cancelPhase({{ idx }})">&#9632; Abbrechen</button>
+      <span style="font-size:12px;color:var(--text-dim);margin-left:4px">Laeuft noch im Hintergrund bis zum naechsten API-Response</span>
+    {% elif phase.status == 'review' %}
+      {% if idx in (0, 2, 3) %}
+      <button class="btn btn-approve" onclick="approvePhase({{ idx }})">&#10003; Freigeben</button>
+      <button class="btn btn-reject"  onclick="rejectPhase({{ idx }})">&#10007; Ablehnen</button>
+      <button class="btn btn-ghost btn-sm" onclick="saveEdit({{ idx }})">&#128190; Aenderungen speichern</button>
+      {% elif idx == 1 %}
+      <button class="btn btn-approve" onclick="approvePhase({{ idx }})">&#10003; Reviews freigeben</button>
+      <button class="btn btn-reject"  onclick="rejectPhase({{ idx }})">&#10007; Ablehnen</button>
+      {% elif idx == 4 %}
+      <button class="btn btn-approve" onclick="approvePhase({{ idx }})">&#10003; Done</button>
+      <button class="btn btn-reject"  onclick="rejectPhase({{ idx }})">&#8635; Retry</button>
+      {% endif %}
+    {% elif phase.status == 'rejected' %}
+      <button class="btn btn-secondary" onclick="retryPhase({{ idx }})">&#8635; Nochmal</button>
+    {% elif phase.status == 'approved' %}
+      <span class="approved-stamp">&#10003; Freigegeben</span>
+    {% endif %}
+  </div>
+
+</div>
+{% endfor %}
+
+<!-- Run ID (for JS) -->
+<div id="run-id-data" data-run-id="{{ run.run_id }}" style="display:none"></div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const RUN_ID = document.getElementById('run-id-data').dataset.runId;
+
+// Pre-seed _lastStatuses from the server-rendered badges so the first poll
+// does NOT overwrite already-correct Jinja-rendered phase content.
+(function() {
+  {% for phase in run.phases %}
+  _lastStatuses[{{ loop.index0 }}] = '{{ phase.status }}';
+  {% endfor %}
+})();
+</script>
+{% endblock %}

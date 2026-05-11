@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Aethos Pipeline Dashboard{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" class="nav-brand">
+    <span class="nav-icon">&#127908;</span>
+    <span class="nav-title">Aethos Pipeline Dashboard</span>
+  </a>
+  <div class="nav-actions">
+    <button class="btn btn-ghost btn-sm" onclick="toggleKeyModal()">&#128273; API Keys</button>
+  </div>
+</nav>
+
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- API Keys Modal -->
+<div class="modal-overlay" id="key-modal" style="display:none" onclick="if(event.target===this)toggleKeyModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>API Keys konfigurieren</h3>
+      <button class="modal-close" onclick="toggleKeyModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">Keys werden nur in dieser Browser-Session gespeichert. Alternativ: <code>.env</code>-Datei im Projektordner.</p>
+      <div class="key-row">
+        <label>Anthropic</label>
+        <input type="password" id="modal-key-anthropic" placeholder="sk-ant-..." autocomplete="off">
+        <span class="key-indicator" id="ind-anthropic"></span>
+      </div>
+      <div class="key-row">
+        <label>Google</label>
+        <input type="password" id="modal-key-google" placeholder="AIza..." autocomplete="off">
+        <span class="key-indicator" id="ind-google"></span>
+      </div>
+      <div class="key-row">
+        <label>OpenAI</label>
+        <input type="password" id="modal-key-openai" placeholder="sk-..." autocomplete="off">
+        <span class="key-indicator" id="ind-openai"></span>
+      </div>
+      <div class="key-row">
+        <label>DeepSeek</label>
+        <input type="password" id="modal-key-deepseek" placeholder="sk-..." autocomplete="off">
+        <span class="key-indicator" id="ind-deepseek"></span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveKeys()">&#10003; Speichern</button>
+      <button class="btn btn-secondary" onclick="toggleKeyModal()">Abbrechen</button>
+      <span id="key-save-msg" style="font-size:12px;color:#4ade80;margin-left:10px"></span>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

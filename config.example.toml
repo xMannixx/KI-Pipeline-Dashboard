@@ -1,0 +1,203 @@
+# Aethos Pipeline Dashboard — Rollen-Konfiguration (Beispiel)
+#
+# Kopieren: `config.example.toml` → `config.toml` und Pfade anpassen.
+# Relative Pfade beziehen sich auf das Repository-Stammverzeichnis.
+# Ohne `config.toml` lädt die App automatisch diese Datei als Fallback.
+
+[cursor_bridge]
+workspace = "data/cursor_auftraege"
+
+[auftraege_dir]
+path = "data/review_auftraege"
+
+[review_results_dir]
+path = "data/review_ergebnisse"
+
+[konsolidierungen_dir]
+path = "data/konsolidierungen"
+
+[token_reports_dir]
+path = "data/token_reports"
+
+# ── Dokumente-Ordner ────────────────────────────────────────────────────────
+# Hier liegen Systemprompts, Current State Sheets, Tagesberichte etc.
+# Wird im "Neuer Run"-Dialog als Datei-Picker angeboten.
+[docs_dir]
+path = "data/systemprompts"
+
+[systemprompts_dir]
+path = "data/systemprompts"
+
+[current_state_sheet_dir]
+path = "data/current_state_sheet"
+
+# ── Workspace-Browser ────────────────────────────────────────────────────────
+# Startpfade fuer den Datei-Browser (relative oder absolute Pfade).
+# Erweitere die Liste fuer weitere Projektverzeichnisse auf deinem Rechner.
+
+[[workspace_roots]]
+label = "Pipeline Dashboard (dieses Repo)"
+path = "."
+
+# Erlaubte Dateiendungen fuer den Browser
+[workspace_browser]
+extensions = [".py", ".md", ".yaml", ".yml", ".txt", ".ts", ".js", ".json", ".toml"]
+
+# ── Anthropic Prompt Caching ────────────────────────────────────────────────
+# ephemeral: Cache-Schreib ~1.25x Basis (5 Min TTL, Standard)
+# ttl "1h":  ~2x Basis-Schreib, Cache bleibt 1 Stunde — sinnvoll wenn dieselben
+#            Praefixe (Systemprompt + Kontext) mit >5 Min Pause wiederverwendet
+#            werden (z.B. Teamleiter Phase 1, spaeter Phase 3 mit Anthropic).
+[anthropic]
+prompt_cache_ttl = "5m"   # "5m" | "1h"
+
+# ── Teamleiter (primaere Keys) ──────────────────────────────────────────────
+[teamleiter]
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+temperature = 0.3
+max_tokens = 8192
+system_prompt = """Du bist der Teamleiter des Aethos-Review-Systems.
+Du koordinierst den gesamten Review-Build-Zyklus fuer KI-generierte Software.
+Deine Aufgaben:
+1. Review-Auftraege als strukturiertes YAML generieren
+2. Parallele Review-Ergebnisse konsolidieren (Konsens, einzigartige Findings, Prioritaeten)
+3. Cursor-Auftraege aus konsolidierten Findings generieren
+
+Antworte immer praezise, strukturiert und auf Deutsch."""
+
+# Diese Regeln werden IMMER an den Systemprompt angehaengt — auch wenn ein eigener
+# Systemprompt ausgewaehlt wurde. Sie sind nicht ueberschreibbar.
+anti_mogel = """
+WICHTIG — Anti-Mogel-Regeln fuer alle generierten Cursor-Auftraege:
+- Keine hardcodierten Werte oder Loesungen die nur fuer spezifische Test-Inputs funktionieren
+- Keine Umgehung von Tests — echte Probleme loesen, nicht Tests manipulieren
+- Falls Tests falsch sind: informiere den Dirigenten statt daran vorbeizuarbeiten
+- Fail-Closed-Prinzip: bei Unsicherheit ablehnen, nicht raten"""
+
+# Diese Modelle erscheinen im Dashboard als auswaehlbar fuer den Teamleiter.
+[[teamleiter_choices]]
+label = "Sonnet 4.6 (Anthropic)"
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+
+[[teamleiter_choices]]
+label = "Opus 4.6 (Anthropic)"
+provider = "anthropic"
+model = "claude-opus-4-6"
+
+[[teamleiter_choices]]
+label = "GPT 5.2 / o3 (OpenAI)"
+provider = "openai"
+model = "o3"
+
+[[teamleiter_choices]]
+label = "GPT 5.4 / o4-mini (OpenAI)"
+provider = "openai"
+model = "o4-mini"
+
+[[teamleiter_choices]]
+label = "Gemini 3.1 Pro (Google)"
+provider = "google"
+model = "gemini-3.1-pro-preview"
+
+[[teamleiter_choices]]
+label = "DeepSeek R1"
+provider = "deepseek"
+model = "deepseek-reasoner"
+
+# ── Legacy-Fallback (deprecated): [konzertmeister] ──────────────────────────
+[konzertmeister]
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+temperature = 0.3
+max_tokens = 8192
+system_prompt = """Du bist der Teamleiter des Aethos-Review-Systems.
+Du koordinierst den gesamten Review-Build-Zyklus fuer KI-generierte Software.
+Deine Aufgaben:
+1. Review-Auftraege als strukturiertes YAML generieren
+2. Parallele Review-Ergebnisse konsolidieren (Konsens, einzigartige Findings, Prioritaeten)
+3. Cursor-Auftraege aus konsolidierten Findings generieren
+
+Antworte immer praezise, strukturiert und auf Deutsch."""
+
+# Diese Regeln werden IMMER an den Systemprompt angehaengt — auch wenn ein eigener
+# Systemprompt ausgewaehlt wurde. Sie sind nicht ueberschreibbar.
+anti_mogel = """
+WICHTIG — Anti-Mogel-Regeln fuer alle generierten Cursor-Auftraege:
+- Keine hardcodierten Werte oder Loesungen die nur fuer spezifische Test-Inputs funktionieren
+- Keine Umgehung von Tests — echte Probleme loesen, nicht Tests manipulieren
+- Falls Tests falsch sind: informiere den Dirigenten statt daran vorbeizuarbeiten
+- Fail-Closed-Prinzip: bei Unsicherheit ablehnen, nicht raten"""
+
+# Legacy-Fallback fuer alte Loader/Tools.
+[[konzertmeister_choices]]
+label = "Sonnet 4.6 (Anthropic)"
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+
+[[konzertmeister_choices]]
+label = "Opus 4.6 (Anthropic)"
+provider = "anthropic"
+model = "claude-opus-4-6"
+
+[[konzertmeister_choices]]
+label = "GPT 5.2 / o3 (OpenAI)"
+provider = "openai"
+model = "o3"
+
+[[konzertmeister_choices]]
+label = "GPT 5.4 / o4-mini (OpenAI)"
+provider = "openai"
+model = "o4-mini"
+
+[[konzertmeister_choices]]
+label = "Gemini 3.1 Pro (Google)"
+provider = "google"
+model = "gemini-3.1-pro-preview"
+
+[[konzertmeister_choices]]
+label = "DeepSeek R1"
+provider = "deepseek"
+model = "deepseek-reasoner"
+
+# ── Reviewer ────────────────────────────────────────────────────────────────
+[reviewer.google]
+provider = "google"
+model = "gemini-3.1-pro-preview"
+name = "Gemini 3.1 Pro"
+role = "Architektur & Performance"
+temperature = 0.2
+max_tokens = 8192
+
+[reviewer.anthropic]
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+name = "Sonnet 4.6"
+role = "Code-Qualitaet & Security"
+temperature = 0.2
+max_tokens = 8192
+
+[reviewer.openai52]
+provider = "openai"
+model = "o3"
+name = "GPT 5.2 Thinking"
+role = "Bug Hunter (primaer)"
+temperature = 0.2
+max_tokens = 8192
+
+[reviewer.openai54]
+provider = "openai"
+model = "o4-mini"
+name = "GPT 5.4 Thinking"
+role = "Logik & Edge Cases"
+temperature = 0.2
+max_tokens = 8192
+
+[reviewer.deepseek]
+provider = "deepseek"
+model = "deepseek-reasoner"
+name = "DeepSeek R1"
+role = "Reasoning & Correctness"
+temperature = 0.2
+max_tokens = 8192

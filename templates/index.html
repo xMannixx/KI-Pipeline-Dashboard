@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Aethos Pipeline{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Pipeline Runs</h1>
+    <p class="page-subtitle">Jeder Run durchlaeuft 5 Phasen. Manni klickt nur Buttons.</p>
+  </div>
+  <button class="btn btn-primary" onclick="toggleNewRunModal()">&#43; Neuer Run</button>
+</div>
+
+<!-- ── Statistik-Panel ──────────────────────────────────────────────── -->
+<div class="stats-panel" id="stats-panel">
+  <!-- Kompakt-Leiste -->
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat-pill" title="Runs gesamt">
+      <span class="stat-pill-icon">&#127908;</span>
+      <span class="stat-pill-val" id="st-total">—</span>
+      <span class="stat-pill-lbl">Runs</span>
+    </div>
+    <div class="stat-pill stat-pill-green" title="Abgeschlossen">
+      <span class="stat-pill-icon">&#10003;</span>
+      <span class="stat-pill-val" id="st-completed">—</span>
+      <span class="stat-pill-lbl">Abgeschlossen</span>
+    </div>
+    <div class="stat-pill stat-pill-blue" title="Cache-Read Tokens gesamt">
+      <span class="stat-pill-icon">&#9889;</span>
+      <span class="stat-pill-val" id="st-cache-read">—</span>
+      <span class="stat-pill-lbl">Cache-Hits</span>
+    </div>
+    <div class="stat-pill stat-pill-purple" title="Extended Thinking Tokens gesamt">
+      <span class="stat-pill-icon">&#129504;</span>
+      <span class="stat-pill-val" id="st-thinking">—</span>
+      <span class="stat-pill-lbl">Thinking-Tokens</span>
+    </div>
+    <div class="stat-pill" title="Durchschnittliche Run-Dauer">
+      <span class="stat-pill-icon">&#9201;</span>
+      <span class="stat-pill-val" id="st-avg-dur">—</span>
+      <span class="stat-pill-lbl">&#216; Dauer</span>
+    </div>
+    <button class="stats-toggle-btn" onclick="toggleStatsDetail()" id="stats-toggle-btn" title="Details anzeigen">
+      &#9660; Details
+    </button>
+  </div>
+
+  <!-- Detail-Bereich (aufklappbar) -->
+  <div class="stats-detail" id="stats-detail" style="display:none">
+
+    <!-- Cache pro KI -->
+    <div class="stats-section">
+      <div class="stats-section-title">&#9889; Cache-Nutzung pro KI / Modell</div>
+      <table class="stats-table" id="cache-table">
+        <thead>
+          <tr><th>KI / Modell</th><th>Cache-Read</th><th>Cache-Write</th><th>Aufrufe</th><th>Ersparnis&nbsp;est.</th></tr>
+        </thead>
+        <tbody id="cache-table-body">
+          <tr><td colspan="5" class="stats-empty">Wird geladen…</td></tr>
+        </tbody>
+      </table>
+      <div class="stats-hint">Ersparnis-Schätzung basiert auf Anthropic Sonnet-Preisen (Cache-Read = ~10% von Input).</div>
+    </div>
+
+    <!-- Token-Übersicht -->
+    <div class="stats-section">
+      <div class="stats-section-title">&#128202; Token-Übersicht</div>
+      <div class="stats-kv-grid" id="token-grid">
+        <div class="stats-kv"><span class="stats-kv-lbl">Cache-Read gesamt</span><span class="stats-kv-val" id="tk-cache-read">—</span></div>
+        <div class="stats-kv"><span class="stats-kv-lbl">Cache-Write gesamt</span><span class="stats-kv-val" id="tk-cache-write">—</span></div>
+        <div class="stats-kv"><span class="stats-kv-lbl">Thinking-Budget gesamt</span><span class="stats-kv-val" id="tk-thinking">—</span></div>
+      </div>
+    </div>
+
+    <!-- Modell-Nutzung -->
+    <div class="stats-section">
+      <div class="stats-section-title">&#127908; Teamleiter-Modell-Nutzung</div>
+      <div id="model-usage-list" class="stats-bar-list"></div>
+    </div>
+
+    <!-- Reviewer-Nutzung -->
+    <div class="stats-section">
+      <div class="stats-section-title">&#128100; Reviewer-Nutzung</div>
+      <div id="reviewer-usage-list" class="stats-bar-list"></div>
+    </div>
+
+    <!-- Phasen-Qualität -->
+    <div class="stats-section">
+      <div class="stats-section-title">&#127919; Phasen-Qualität & Timing</div>
+      <table class="stats-table" id="phase-table">
+        <thead>
+          <tr><th>Phase</th><th>Freigegeben</th><th>Abgelehnt</th><th>Approve-Rate</th><th>&#216; Dauer</th></tr>
+        </thead>
+        <tbody id="phase-table-body">
+          <tr><td colspan="5" class="stats-empty">Wird geladen…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Run-Übersicht -->
+    <div class="stats-section">
+      <div class="stats-section-title">&#128203; Run-Übersicht</div>
+      <div class="stats-kv-grid" id="run-overview-grid">
+        <div class="stats-kv"><span class="stats-kv-lbl">Gesamt</span><span class="stats-kv-val" id="ro-total">—</span></div>
+        <div class="stats-kv"><span class="stats-kv-lbl">Abgeschlossen</span><span class="stats-kv-val" id="ro-completed">—</span></div>
+        <div class="stats-kv"><span class="stats-kv-lbl">Laufend</span><span class="stats-kv-val" id="ro-running">—</span></div>
+        <div class="stats-kv"><span class="stats-kv-lbl">Warte auf Manni</span><span class="stats-kv-val" id="ro-review">—</span></div>
+        <div class="stats-kv"><span class="stats-kv-lbl">Abgebrochen/Abgelehnt</span><span class="stats-kv-val" id="ro-aborted">—</span></div>
+        <div class="stats-kv"><span class="stats-kv-lbl">&#216; Gesamtdauer</span><span class="stats-kv-val" id="ro-avg-dur">—</span></div>
+      </div>
+    </div>
+
+  </div><!-- /stats-detail -->
+</div><!-- /stats-panel -->
+
+{% if not runs %}
+<div class="empty-state">
+  <div class="empty-icon">&#127908;</div>
+  <h3>Noch keine Pipeline-Runs</h3>
+  <p>Klicke "Neuer Run" um den ersten Review-Zyklus zu starten.</p>
+  <button class="btn btn-primary" onclick="toggleNewRunModal()">&#43; Neuer Run</button>
+</div>
+{% else %}
+<div class="runs-grid">
+  {% for run in runs %}
+  <div class="run-card-wrapper" id="wrapper-{{ run.run_id }}">
+    <a href="/run/{{ run.run_id }}" class="run-card status-{{ run.overall_status }}">
+      <div class="run-card-header">
+        <span class="run-title">{{ run.title }}</span>
+        <span class="status-badge badge-{{ run.overall_status }}">
+          {{ {'pending': 'Ausstehend', 'running': 'Laeuft', 'review': 'Warte auf Manni',
+              'approved': 'Freigegeben', 'rejected': 'Abgelehnt', 'completed': 'Abgeschlossen'
+             }.get(run.overall_status, run.overall_status) }}
+        </span>
+      </div>
+      <div class="run-card-meta">
+        <span>&#128197; {{ run.created_at[:16].replace('T', ' ') }}</span>
+        {% if run.current_phase_idx >= 0 %}
+        <span>&#9654; Phase {{ run.current_phase_idx + 1 }}/5</span>
+        {% else %}
+        <span>&#10003; Alle Phasen abgeschlossen</span>
+        {% endif %}
+      </div>
+      <div class="phase-dots">
+        {% for i in range(5) %}
+        <span class="phase-dot
+          {% if i < run.current_phase_idx %}dot-done
+          {% elif i == run.current_phase_idx %}dot-active
+          {% else %}dot-pending{% endif %}">
+        </span>
+        {% endfor %}
+      </div>
+    </a>
+    <div class="run-card-actions">
+      {% if run.overall_status == 'running' %}
+      <button class="btn btn-ghost btn-sm" onclick="abortRun('{{ run.run_id }}', event)" title="Laufende Phasen stoppen">&#9632; Stoppen</button>
+      {% endif %}
+      <button class="btn btn-ghost btn-sm run-delete-btn" onclick="deleteRun('{{ run.run_id }}', event)" title="Run loeschen">&#128465;</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- New Run Modal -->
+<div class="modal-overlay" id="new-run-modal" style="display:none" onclick="if(event.target===this)toggleNewRunModal()">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h3>Neuen Pipeline-Run starten</h3>
+      <button class="modal-close" onclick="toggleNewRunModal()">&#10005;</button>
+    </div>
+    <form method="POST" action="/run/new">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Titel *</label>
+          <input type="text" name="title" class="form-input" placeholder="z.B. Review Auth-Modul v2" required autofocus>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Beschreibung / Auftrag an Teamleiter</label>
+          <textarea name="description" class="form-textarea" rows="3"
+                    placeholder="Was soll reviewt werden? Welche Aspekte sind wichtig?"></textarea>
+        </div>
+        <!-- ── Systemprompt (Teamleiter) ──────────────────────────────────── -->
+        <div class="form-group">
+          <div class="ctx-field-header">
+            <label class="form-label" style="margin:0">&#127908; Systemprompt — Teamleiter</label>
+            <span class="ctx-field-badge">Phase 1, 3, 4</span>
+            <button type="button" class="ctx-load-btn" onclick="openDocPicker('km-sp')">&#128196; Aus Dokumenten</button>
+          </div>
+          <div class="ctx-doc-picker" id="ctx-picker-km-sp" style="display:none">
+            <select class="form-select ctx-doc-select" id="ctx-select-km-sp">
+              <option value="">— Datei waehlen —</option>
+            </select>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="loadDocFile('km-sp')">Laden</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeDocPicker('km-sp')">&#10005;</button>
+          </div>
+          <textarea name="km_system_prompt" id="ctx-ta-km-sp" class="form-textarea ctx-textarea" rows="3"
+                    placeholder="Systemprompt fuer den Teamleiter (optional — ueberschreibt config.toml)"
+                    oninput="updateCtxCount('km-sp')"></textarea>
+          <div class="ctx-meta">
+            <span class="char-count" id="ctx-count-km-sp">0 Zeichen</span>
+            <button type="button" class="ctx-clear-btn" onclick="clearCtxField('km-sp')">leeren</button>
+          </div>
+        </div>
+
+        <!-- ── Current State Sheet (alle Reviewer) ──────────────────────── -->
+        <div class="form-group">
+          <div class="ctx-field-header">
+            <label class="form-label" style="margin:0">&#128203; Current State Sheet</label>
+            <span class="ctx-field-badge ctx-badge-all">Alle Reviewer</span>
+            <button type="button" class="ctx-load-btn" onclick="openDocPicker('css')">&#128196; Aus Dokumenten</button>
+          </div>
+          <div class="ctx-doc-picker" id="ctx-picker-css" style="display:none">
+            <select class="form-select ctx-doc-select" id="ctx-select-css">
+              <option value="">— Datei waehlen —</option>
+            </select>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="loadDocFile('css')">Laden</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeDocPicker('css')">&#10005;</button>
+          </div>
+          <textarea name="context_sheet" id="ctx-ta-css" class="form-textarea ctx-textarea" rows="3"
+                    placeholder="Aethos Current State Sheet zur Halluzinationskontrolle (optional)"
+                    oninput="updateCtxCount('css')"></textarea>
+          <div class="ctx-meta">
+            <span class="char-count" id="ctx-count-css">0 Zeichen</span>
+            <button type="button" class="ctx-clear-btn" onclick="clearCtxField('css')">leeren</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Code aus Workspace laden</label>
+          <div class="ws-browser" id="ws-browser">
+            <!-- Root-Auswahl -->
+            <div class="ws-roots" id="ws-roots">
+              <span class="ws-loading">Lade Workspace-Ordner...</span>
+            </div>
+            <!-- Breadcrumb + Dateiliste -->
+            <div id="ws-filepanel" style="display:none">
+              <div class="ws-breadcrumb" id="ws-breadcrumb"></div>
+              <div class="ws-filelist" id="ws-filelist"></div>
+              <div class="ws-actions">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="wsClearSelection()">Auswahl aufheben</button>
+                <button type="button" class="btn btn-primary btn-sm" id="ws-load-btn" onclick="wsLoadSelected()" disabled>
+                  &#128196; Ausgewaehlte Dateien laden (<span id="ws-sel-count">0</span>)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="ctx-field-header">
+            <label class="form-label" style="margin:0" id="idx-content-label">Code / Datei-Inhalt</label>
+            <label class="skip-p1-toggle" title="Aktivieren wenn der Review-Auftrag bereits fertig ist">
+              <input type="checkbox" id="skip-phase1-check" name="skip_phase1" value="1" onchange="toggleSkipPhase1()">
+              <span class="skip-p1-label">Review-Auftrag bereits fertig &#10230; Phase&#160;1 ueberspringen</span>
+            </label>
+          </div>
+          <div class="drop-zone" id="idx-drop-zone" onclick="document.getElementById('idx-file-input').click()">
+            <div class="drop-icon">&#128196;</div>
+            <div class="drop-label" id="idx-drop-label">Datei ablegen oder klicken</div>
+            <div class="drop-sublabel" id="idx-drop-sublabel">.py / .md / .txt / .yaml</div>
+          </div>
+          <input type="file" id="idx-file-input" accept=".py,.md,.txt,.yaml,.yml,.js,.ts" style="display:none">
+          <textarea name="input_text" id="idx-input-text" class="form-textarea" rows="6"
+                    placeholder="Oder Code direkt einfuegen..." oninput="updateIdxCount()"></textarea>
+          <div class="char-count" id="idx-char-count">0 Zeichen</div>
+          <div style="margin-top:8px">
+            <select class="form-select" id="idx-auftrag-select" onfocus="loadIdxAuftraege()">
+              <option value="">— Auftrag aus Ordner laden —</option>
+            </select>
+            <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="loadIdxAuftrag()">&#128194; Laden</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">&#9654; Run erstellen</button>
+        <button type="button" class="btn btn-secondary" onclick="toggleNewRunModal()">Abbrechen</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function toggleNewRunModal() {
+  const m = document.getElementById('new-run-modal');
+  m.style.display = m.style.display === 'none' ? 'flex' : 'none';
+}
+
+// Drop zone for new run
+const idxDrop = document.getElementById('idx-drop-zone');
+const idxFile = document.getElementById('idx-file-input');
+idxDrop.addEventListener('dragover', e => { e.preventDefault(); idxDrop.classList.add('drag-over'); });
+idxDrop.addEventListener('dragleave', () => idxDrop.classList.remove('drag-over'));
+idxDrop.addEventListener('drop', e => {
+  e.preventDefault(); idxDrop.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadIdxFile(e.dataTransfer.files[0]);
+});
+idxFile.addEventListener('change', e => { if (e.target.files[0]) loadIdxFile(e.target.files[0]); });
+
+function loadIdxFile(file) {
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('idx-input-text').value = e.target.result;
+    document.getElementById('idx-drop-label').textContent = '&#10003; ' + file.name;
+    idxDrop.classList.add('has-file');
+    updateIdxCount();
+  };
+  r.readAsText(file);
+}
+
+function updateIdxCount() {
+  const n = document.getElementById('idx-input-text').value.length;
+  document.getElementById('idx-char-count').textContent = n.toLocaleString('de') + ' Zeichen';
+}
+
+function loadIdxAuftraege() {
+  fetch('/api/auftraege').then(r => r.json()).then(files => {
+    const sel = document.getElementById('idx-auftrag-select');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Auftrag aus Ordner laden —</option>';
+    files.forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.path; o.textContent = f.name;
+      if (f.path === cur) o.selected = true;
+      sel.appendChild(o);
+    });
+  }).catch(() => {});
+}
+
+function loadIdxAuftrag() {
+  const path = document.getElementById('idx-auftrag-select').value;
+  if (!path) return;
+  fetch('/api/read_file?path=' + encodeURIComponent(path))
+    .then(r => r.text())
+    .then(text => {
+      document.getElementById('idx-input-text').value = text;
+      const name = path.split(/[\\\/]/).pop();
+      document.getElementById('idx-drop-label').textContent = '&#10003; ' + name;
+      idxDrop.classList.add('has-file');
+      updateIdxCount();
+    });
+}
+
+// Auto-load key status indicators
+fetch('/api/keys/status').then(r => r.json()).then(data => {
+  Object.entries(data).forEach(([k, v]) => {
+    const el = document.getElementById('ind-' + k);
+    if (el) el.textContent = v ? '\u2713' : '';
+  });
+}).catch(() => {});
+
+// ── Skip Phase 1 Toggle ───────────────────────────────────────────────────
+function toggleSkipPhase1() {
+  const on = document.getElementById('skip-phase1-check').checked;
+  const label = document.getElementById('idx-content-label');
+  const sublabel = document.getElementById('idx-drop-sublabel');
+  const ta = document.getElementById('idx-input-text');
+  const dropZone = document.getElementById('idx-drop-zone');
+
+  if (on) {
+    label.textContent = 'Fertiger Review-Auftrag (YAML)';
+    label.style.color = '#81c784';
+    sublabel.textContent = '.yaml — wird direkt als Phase-1-Ergebnis gesetzt';
+    ta.placeholder = 'Review-Auftrag YAML hier einfuegen...\nauftrag:\n  titel: "..."\n  beschreibung: "..."';
+    dropZone.style.borderColor = '#2e5c2e';
+    dropZone.style.background = '#0e1e0e';
+  } else {
+    label.textContent = 'Code / Datei-Inhalt';
+    label.style.color = '';
+    sublabel.textContent = '.py / .md / .txt / .yaml';
+    ta.placeholder = 'Oder Code direkt einfuegen...';
+    dropZone.style.borderColor = '';
+    dropZone.style.background = '';
+  }
+}
+
+// ── Context Fields (Systemprompt / Current State Sheet) ───────────────────
+let _docsCache = null;
+
+function _loadDocs(cb) {
+  if (_docsCache) { cb(_docsCache); return; }
+  fetch('/api/docs/files').then(r => r.json()).then(files => {
+    _docsCache = files;
+    cb(files);
+  }).catch(() => cb([]));
+}
+
+function openDocPicker(slot) {
+  const picker = document.getElementById('ctx-picker-' + slot);
+  picker.style.display = 'flex';
+  const sel = document.getElementById('ctx-select-' + slot);
+  if (sel.options.length <= 1) {
+    _loadDocs(files => {
+      sel.innerHTML = '<option value="">— Datei waehlen —</option>';
+      files.forEach(f => {
+        const o = document.createElement('option');
+        o.value = f.path; o.textContent = f.name + ' (' + f.size_kb + ' KB)';
+        // Pre-select latest Systemprompt or CSS based on slot
+        if (slot === 'km-sp' && f.name.includes('Systemprompt')) o.selected = true;
+        if (slot === 'css' && f.name.includes('Current_State_Sheet')) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
+  }
+}
+
+function closeDocPicker(slot) {
+  document.getElementById('ctx-picker-' + slot).style.display = 'none';
+}
+
+function loadDocFile(slot) {
+  const path = document.getElementById('ctx-select-' + slot).value;
+  if (!path) return;
+  fetch('/api/read_file?path=' + encodeURIComponent(path))
+    .then(r => r.text())
+    .then(text => {
+      document.getElementById('ctx-ta-' + slot).value = text;
+      updateCtxCount(slot);
+      closeDocPicker(slot);
+    });
+}
+
+function updateCtxCount(slot) {
+  const n = document.getElementById('ctx-ta-' + slot).value.length;
+  document.getElementById('ctx-count-' + slot).textContent = n.toLocaleString('de') + ' Zeichen';
+}
+
+function clearCtxField(slot) {
+  document.getElementById('ctx-ta-' + slot).value = '';
+  updateCtxCount(slot);
+}
+
+// ── Workspace Browser ─────────────────────────────────────────────────────
+let _wsSelected = new Set();
+let _wsCurrentPath = null;
+
+function wsInit() {
+  fetch('/api/workspace/roots').then(r => r.json()).then(roots => {
+    const el = document.getElementById('ws-roots');
+    if (!roots.length) { el.innerHTML = '<span class="ws-loading">Keine Workspace-Ordner konfiguriert.</span>'; return; }
+    let html = '<span class="ws-roots-label">Ordner:</span>';
+    roots.forEach(r => {
+      const disabled = !r.exists ? ' disabled title="Pfad nicht gefunden"' : '';
+      html += '<button type="button" class="ws-root-btn"' + disabled + ' onclick="wsBrowse(\'' + r.path.replace(/\\/g,'\\\\') + '\')">' + r.label + '</button>';
+    });
+    el.innerHTML = html;
+  }).catch(() => {
+    document.getElementById('ws-roots').innerHTML = '<span class="ws-loading">Fehler beim Laden.</span>';
+  });
+}
+
+function wsBrowse(path) {
+  fetch('/api/workspace/list?path=' + encodeURIComponent(path))
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert('Fehler: ' + data.error); return; }
+      _wsCurrentPath = data.path;
+      document.getElementById('ws-filepanel').style.display = 'block';
+      _wsRenderBreadcrumb(data);
+      _wsRenderFiles(data);
+    })
+    .catch(e => alert('Fehler: ' + e));
+}
+
+function _wsRenderBreadcrumb(data) {
+  const bc = document.getElementById('ws-breadcrumb');
+  let html = '';
+  if (data.parent) {
+    html += '<button type="button" class="ws-bc-btn" onclick="wsBrowse(\'' + data.parent.replace(/\\/g,'\\\\') + '\')">\u2190 Zurueck</button>';
+  }
+  const parts = data.path.replace(/\\/g, '/').split('/');
+  html += '<span class="ws-bc-path">' + parts[parts.length - 1] + '</span>';
+  bc.innerHTML = html;
+}
+
+function _wsRenderFiles(data) {
+  const list = document.getElementById('ws-filelist');
+  let html = '';
+
+  data.dirs.forEach(d => {
+    html += '<div class="ws-entry ws-dir" onclick="wsBrowse(\'' + d.path.replace(/\\/g,'\\\\') + '\')">'
+      + '<span class="ws-icon">\uD83D\uDCC1</span>'
+      + '<span class="ws-name">' + d.name + '</span>'
+      + '</div>';
+  });
+
+  data.files.forEach(f => {
+    const checked = _wsSelected.has(f.path);
+    html += '<label class="ws-entry ws-file' + (checked ? ' ws-selected' : '') + '">'
+      + '<input type="checkbox" class="ws-check" value="' + f.path + '" ' + (checked ? 'checked' : '') + ' onchange="wsToggle(this)">'
+      + '<span class="ws-icon">\uD83D\uDCC4</span>'
+      + '<span class="ws-name">' + f.name + '</span>'
+      + '<span class="ws-size">' + f.size_kb + ' KB</span>'
+      + '</label>';
+  });
+
+  if (!html) html = '<div class="ws-loading">Keine Dateien gefunden.</div>';
+  list.innerHTML = html;
+}
+
+function wsToggle(checkbox) {
+  const path = checkbox.value;
+  if (checkbox.checked) _wsSelected.add(path);
+  else _wsSelected.delete(path);
+  _wsUpdateLoadBtn();
+  // Update row highlight
+  const label = checkbox.closest('.ws-entry');
+  if (label) label.classList.toggle('ws-selected', checkbox.checked);
+}
+
+function _wsUpdateLoadBtn() {
+  const btn = document.getElementById('ws-load-btn');
+  const count = document.getElementById('ws-sel-count');
+  if (btn) btn.disabled = _wsSelected.size === 0;
+  if (count) count.textContent = _wsSelected.size;
+}
+
+function wsClearSelection() {
+  _wsSelected.clear();
+  document.querySelectorAll('.ws-check').forEach(c => { c.checked = false; });
+  document.querySelectorAll('.ws-entry.ws-selected').forEach(e => e.classList.remove('ws-selected'));
+  _wsUpdateLoadBtn();
+}
+
+function wsLoadSelected() {
+  if (_wsSelected.size === 0) return;
+  const btn = document.getElementById('ws-load-btn');
+  btn.disabled = true;
+  btn.textContent = 'Lade...';
+
+  fetch('/api/workspace/read_multi', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ paths: [..._wsSelected] })
+  })
+  .then(r => r.json())
+  .then(data => {
+    const ta = document.getElementById('idx-input-text');
+    const existing = ta.value.trim();
+    ta.value = existing ? existing + '\n\n---\n\n' + data.content : data.content;
+    updateIdxCount();
+    const names = [..._wsSelected].map(p => p.replace(/\\/g,'/').split('/').pop()).join(', ');
+    document.getElementById('idx-drop-label').textContent = '\u2713 ' + data.loaded + ' Datei(en): ' + names;
+    document.getElementById('idx-drop-zone').classList.add('has-file');
+    if (data.errors.length) alert('Fehler bei: ' + data.errors.join('\n'));
+    btn.textContent = '\u2713 ' + data.loaded + ' Datei(en) geladen';
+    setTimeout(() => {
+      btn.textContent = '\uD83D\uDCC4 Ausgew\u00e4hlte Dateien laden (' + _wsSelected.size + ')';
+      btn.disabled = _wsSelected.size === 0;
+    }, 2000);
+  })
+  .catch(e => { alert('Fehler: ' + e); btn.disabled = false; });
+}
+
+// Init browser when modal opens
+const _origToggle = window.toggleNewRunModal;
+window.toggleNewRunModal = function() {
+  _origToggle();
+  const m = document.getElementById('new-run-modal');
+  if (m.style.display !== 'none') wsInit();
+};
+</script>
+{% endblock %}
